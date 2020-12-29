@@ -1,34 +1,39 @@
 package upcloud
 
 import (
+	"context"
 	"os"
 	"testing"
 
-	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/hashicorp/terraform/terraform"
-	"github.com/terraform-providers/terraform-provider-template/template"
-	"github.com/terraform-providers/terraform-provider-tls/tls"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-var testAccProviders map[string]terraform.ResourceProvider
-var testAccProvidersWithTLS map[string]terraform.ResourceProvider
+var testAccProviders map[string]*schema.Provider
+var testAccProviderFactories func(providers *[]*schema.Provider) map[string]func() (*schema.Provider, error)
 var testAccProvider *schema.Provider
-var testAccTemplateProvider *schema.Provider
+var testAccProviderFunc func() *schema.Provider
 
 func init() {
 	testAccProvider = Provider()
-	testAccTemplateProvider = template.Provider().(*schema.Provider)
-	testAccProviders = map[string]terraform.ResourceProvider{
-		"upcloud":  testAccProvider,
-		"template": testAccTemplateProvider,
-	}
-	testAccProvidersWithTLS = map[string]terraform.ResourceProvider{
-		"tls": tls.Provider(),
+	testAccProviders = map[string]*schema.Provider{
+		"upcloud": testAccProvider,
 	}
 
-	for k, v := range testAccProviders {
-		testAccProvidersWithTLS[k] = v
+	testAccProviderFactories = func(providers *[]*schema.Provider) map[string]func() (*schema.Provider, error) {
+
+		var providerNames = []string{"upcloud"}
+		var factories = make(map[string]func() (*schema.Provider, error), len(providerNames))
+		for _, name := range providerNames {
+			p := Provider()
+			factories[name] = func() (*schema.Provider, error) { //nolint:unparam
+				return p, nil
+			}
+			*providers = append(*providers, p)
+		}
+		return factories
 	}
+	testAccProviderFunc = func() *schema.Provider { return testAccProvider }
 }
 
 func TestProvider(t *testing.T) {
@@ -45,7 +50,7 @@ func testAccPreCheck(t *testing.T) {
 		t.Fatal("UPCLOUD_PASSWORD must be set for acceptance tests")
 	}
 
-	err := testAccProvider.Configure(terraform.NewResourceConfig(nil))
+	err := testAccProvider.Configure(context.Background(), terraform.NewResourceConfigRaw(nil))
 	if err != nil {
 		t.Fatal(err)
 	}

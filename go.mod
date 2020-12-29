@@ -1,14 +1,11 @@
 module github.com/UpCloudLtd/terraform-provider-upcloud
 
-go 1.12
+go 1.14
 
 require (
-	github.com/UpCloudLtd/upcloud-go-api v0.0.0-20170606103718-0cb65aa6ddcd
+	github.com/UpCloudLtd/upcloud-go-api v0.0.0-20201223084439-d827e77e1f4a
+	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320
+	github.com/hashicorp/go-retryablehttp v0.6.7
 	github.com/hashicorp/go-uuid v1.0.1
-	github.com/hashicorp/hcl v0.0.0-20171017181929-23c074d0eceb // indirect
-	github.com/hashicorp/terraform v0.12.1
-	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/terraform-providers/terraform-provider-template v1.0.0
-	github.com/terraform-providers/terraform-provider-tls v1.0.1
-	google.golang.org/grpc v1.21.1 // indirect
+	github.com/hashicorp/terraform-plugin-sdk/v2 v2.0.1
 )

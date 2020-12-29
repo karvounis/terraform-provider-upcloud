@@ -1,5 +1,7 @@
 # Terraform Provider
 
+![UpCloud Terraform provider tests](https://github.com/UpCloudLtd/terraform-provider-upcloud/workflows/UpCloud%20Terraform%20provider%20tests/badge.svg)
+
 This provider is developed by UpCloud, contributions from the community are welcomed!
 
 * Check Github issues or create more issues
@@ -14,8 +16,8 @@ This provider is developed by UpCloud, contributions from the community are welc
 
 ## Requirements
 
-* [Terraform](https://www.terraform.io/downloads.html) 0.12.x
-* [Go](https://golang.org/doc/install) 1.12 (to build the provider plugin)
+* [Terraform](https://www.terraform.io/downloads.html) 0.12.x, (to execute the provider plugin)
+* [Go](https://golang.org/doc/install) 1.14.x or greater, (to build the provider plugin)
 
 ## Building The Provider
 
@@ -29,11 +31,9 @@ $ cd terraform-provider-upcloud
 Build and symlink the provider into a folder (also make sure it exists) where Terraform looks for it:
 
 ```sh
-$ go mod init
-$ go install
-$ go build
+$ make
 $ mkdir -p $HOME/.terraform.d/plugins
-$ ln -s $(pwd)/terraform-provider-upcloud $HOME/.terraform.d/plugins
+$ ln -s $GOBIN/terraform-provider-upcloud $HOME/.terraform.d/plugins
 ```
 
 ## Using the provider
@@ -49,15 +49,95 @@ Click **Add user** and fill in the required details, and check the “**Allow AP
 
 For more instructions, check out examples folder.
 
+## Example use case
+
+Below is an example configuration on how to create a server using the Terraform provider. Note that currently, only 10 concurrent servers creation is possible per account. For more examples, visit [official Terraform documentation](https://registry.terraform.io/providers/UpCloudLtd/upcloud/latest/docs).
+
+```
+terraform {
+  required_providers {
+    upcloud = {
+      source = "UpCloudLtd/upcloud"
+      version = "1.0.0"
+    }
+  }
+}
+
+provider "upcloud" {
+  # Your UpCloud credentials are read from the environment variables
+  # export UPCLOUD_USERNAME="Username for Upcloud API user"
+  # export UPCLOUD_PASSWORD="Password for Upcloud API user"
+}
+
+resource "upcloud_server" "server1" {
+  # System hostname
+  hostname = "terraform.example.com"
+
+  # Availability zone
+  zone = "nl-ams1"
+
+  # Number of CPUs and memory in GB
+  plan = "1xCPU-1GB"
+
+  storage_devices {
+    # System storage device size
+    size = 25
+
+    # Template UUID for Ubuntu 20.04
+    storage = "01000000-0000-4000-8000-000030200200"
+
+    # Storage device typeC
+    tier   = "maxiops"
+    action = "clone"
+  }
+
+  # Network interfaces
+  network_interface {
+    type = "public"
+  }
+
+  network_interface {
+    type = "utility"
+  }
+
+  # Include at least one public SSH key
+  login {
+    user = "root"
+    keys = [
+      "<YOUR SSH PUBLIC KEY>",
+    ]
+    create_password = true
+    password_delivery = "email"
+  }
+
+  # Configuring connection details
+  connection {
+    # The server public IP address
+    host        = self.network_interface[0].ip_address
+    type        = "ssh"
+    user        = "root"
+    private_key = "<PATH TO YOUR SSH PRIVATE KEY>"
+  }
+
+  # Remotely executing a command on the server
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Hello world!'"
+    ]
+  }
+}
+```
+
 ## Developing the Provider
 
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (version 1.12+ is _required_).
+If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (version 1.14+ is _required_).
 
-To compile the provider, run `go build`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
+To compile the provider, run `go build`. This will build the provider and put the provider binary in the current directory.
 
 ```sh
 $ go build
 ```
+In the majority of cases the ```make``` command will be executed to allow the provider binary to be discovered by Terraform.
 
 In order to test the provider, you can simply run `make test`.
 
@@ -72,3 +152,79 @@ _Note:_ Acceptance tests create real resources, and often cost money to run.
 ```sh
 $ make testacc
 ```
+
+In order to run an individual acceptance test, the '-run' flag can be used together with a regular expression.
+The following example uses a regular expression matching single test called 'TestUpcloudServer_basic'.
+
+```sh
+$ make testacc TESTARGS='-run=TestUpcloudServer_basic'
+```
+
+The following example uses a regular expression to execute a grouping of basic acceptance tests.
+
+```sh
+$ make testacc TESTARGS='-run=TestUpcloudServer_*'
+```
+
+In order to view the provider documentation locally, you can run `make website`.
+A docker container will start and a URl to the documentation will be returned.
+
+```sh
+$ make website
+
+...
+==> Starting upcloud provider website in Docker...
+== The Middleman is loading
+==
+==> See upcloud docs at http://localhost:4567/docs/providers/upcloud
+...
+``` 
+
+A website test can be execute to confirm that the links inside the website docs are not broken.
+This test can be run through the following command
+
+```sh
+$ make website-test
+```
+
+## Consuming local provider with Terraform 0.13.0
+
+With the release of Terraform 0.13.0 the discovery of a locally built provider binary has changed.
+These changes have been made to allow all providers to be discovered from public and provider registries.
+
+The UpCloud makefile has been updated with a new target to build the provider binary into the right location for discovery.
+The following commands will allow you to build and execute terraform with the provider locally.
+
+Update your terraform files with the following terraform configuration block.  A standard name for a file with the following HCL is `version.tf`.
+
+```
+terraform {
+  required_providers {
+    upcloud = {
+      source = "registry.upcloud.com/upcloud/upcloud"
+    }
+  }
+  required_version = ">= 0.13"
+}
+```
+
+The following make command can be executed to build and place the provider in the correct directory location.
+
+```sh
+$ make build_0_13
+```
+
+The UpCloud provider will be built and placed in the following location under the `~/.terraform.d/plugins` directory.
+The version number will match the value specified in the makefile and in this case the version is 0.1.0.
+
+```
+~/.terraform.d/plugins
+└── registry.upcloud.com
+    └── upcloud
+        └── upcloud
+            └── 0.1.0
+                └── darwin_amd64
+                    └── terraform-provider-upcloud_v0.1.0
+``` 
+
+After the provider has been built you can then use standard terraform commands can be executed as normal.
